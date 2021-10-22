@@ -50,5 +50,5 @@ COMMAND_TO_CODE: Final = {
 }
 
 POWER_CMD: Final = "power"
-POWER_ON_CMD: Final = "power_on"
-POWER_OFF_CMD: Final = "power_off"
+POWER_ON_CMD: Final = "poweron"
+POWER_OFF_CMD: Final = "poweroff"
