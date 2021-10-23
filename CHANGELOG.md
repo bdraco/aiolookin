@@ -6,4 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/ANMalko/aiolookin/compare/main
+## [0.0.1]
+### Added
+- Init commit
+
+
+[Unreleased]: https://github.com/ANMalko/aiolookin/compare/main...v0.0.1
+[0.0.1]: https://github.com/ANMalko/aiolookin/
