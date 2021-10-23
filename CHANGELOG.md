@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.0.3]
+### Changed
+- `POWER_ON_CMD` and `POWER_OFF_CMD` constants
+
 ## [0.0.2]
 ### Fixed
 - `protocol` annotations
@@ -17,6 +21,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Init commit
 
 
-[Unreleased]: https://github.com/ANMalko/aiolookin/compare/main...v0.0.2
+[Unreleased]: https://github.com/ANMalko/aiolookin/compare/main...v0.0.3
+[0.0.3]: https://github.com/ANMalko/aiolookin/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/ANMalko/aiolookin/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/ANMalko/aiolookin/
