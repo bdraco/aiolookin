@@ -4,6 +4,7 @@ from aiohttp import web
 from aiolookin.error import NoUsableService
 from aiolookin.models import Climate, Device, MeteoSensor, Remote
 from aiolookin.protocol import IRFormat
+from aiolookin.const import COMMAND_TO_CODE
 
 
 class TestGetInfo:
@@ -23,7 +24,6 @@ class TestGetInfo:
 
         assert isinstance(response, Device)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -34,7 +34,8 @@ class TestGetInfo:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.get_info()
+        with pytest.raises(NoUsableService):
+            await protocol.get_info()
 
 
 class TestUpdateDeviceName:
@@ -50,7 +51,6 @@ class TestUpdateDeviceName:
 
         await protocol.update_device_name(name="new_name")
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -61,7 +61,8 @@ class TestUpdateDeviceName:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.update_device_name(name="new_name")
+        with pytest.raises(NoUsableService):
+            await protocol.update_device_name(name="new_name")
 
 
 class TestGetMeteoSensor:
@@ -81,7 +82,6 @@ class TestGetMeteoSensor:
 
         assert isinstance(response, MeteoSensor)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -92,7 +92,8 @@ class TestGetMeteoSensor:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.get_meteo_sensor()
+        with pytest.raises(NoUsableService):
+            await protocol.get_meteo_sensor()
 
 
 class TestGetDevices:
@@ -112,7 +113,6 @@ class TestGetDevices:
 
         assert response == get_devices_response
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -123,7 +123,8 @@ class TestGetDevices:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.get_devices()
+        with pytest.raises(NoUsableService):
+            await protocol.get_devices()
 
 
 class TestGetDevice:
@@ -145,7 +146,6 @@ class TestGetDevice:
 
         assert response == get_device_response
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -158,7 +158,8 @@ class TestGetDevice:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.get_device(uuid=_uuid)
+        with pytest.raises(NoUsableService):
+            await protocol.get_device(uuid=_uuid)
 
 
 class TestGetConditioner:
@@ -180,7 +181,6 @@ class TestGetConditioner:
 
         assert isinstance(response, Climate)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -193,7 +193,8 @@ class TestGetConditioner:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.get_conditioner(uuid=_uuid)
+        with pytest.raises(NoUsableService):
+            await protocol.get_conditioner(uuid=_uuid)
 
 
 class TestGetRemote:
@@ -214,7 +215,6 @@ class TestGetRemote:
         response = await protocol.get_remote(uuid=_uuid)
         assert isinstance(response, Remote)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -227,7 +227,8 @@ class TestGetRemote:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.get_remote(uuid=_uuid)
+        with pytest.raises(NoUsableService):
+            await protocol.get_remote(uuid=_uuid)
 
 
 class TestSendCommand:
@@ -257,10 +258,11 @@ class TestSendCommand:
 
         _uuid = "49C2"
         signal = faker.random.choice(["FF", "01"])
+        code = COMMAND_TO_CODE.get(command)
 
         app = web.Application()
         app.router.add_get(
-            f"/commands/ir/localremote/{_uuid}{command}{signal}", handler
+            f"/commands/ir/localremote/{_uuid}{code}{signal}", handler
         )
         test_client = await aiohttp_client(app)
 
@@ -268,7 +270,6 @@ class TestSendCommand:
 
         await protocol.send_command(uuid=_uuid, command=command, signal=signal)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(self, aiohttp_client, lookin_http_protocol, faker):
         async def handler(_):
             raise web.HTTPRequestTimeout()
@@ -285,7 +286,8 @@ class TestSendCommand:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.send_command(uuid=_uuid, command=command, signal=signal)
+        with pytest.raises(NoUsableService):
+            await protocol.send_command(uuid=_uuid, command=command, signal=signal)
 
     async def test_invalid_command(self, aiohttp_client, lookin_http_protocol, faker):
         async def handler(_):
@@ -326,7 +328,6 @@ class TestSendIR:
 
         await protocol.send_ir(ir_format=ir_format, codes=codes)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     @pytest.mark.parametrize(
         "ir_format, url", ((IRFormat.ProntoHEX, "prontohex"), (IRFormat.Raw, "raw"))
     )
@@ -342,7 +343,8 @@ class TestSendIR:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.send_ir(ir_format=ir_format, codes=codes)
+        with pytest.raises(NoUsableService):
+            await protocol.send_ir(ir_format=ir_format, codes=codes)
 
     @pytest.mark.parametrize("url", ("prontohex", "raw"))
     async def test_invalid_ir_format(
@@ -383,7 +385,6 @@ class TestUpdateConditioner:
 
         await protocol.update_conditioner(climate=climate)
 
-    @pytest.mark.xfail(raises=NoUsableService)
     async def test_timeout(
         self, aiohttp_client, lookin_http_protocol, get_conditioner_response
     ):
@@ -400,4 +401,5 @@ class TestUpdateConditioner:
 
         protocol = lookin_http_protocol(test_client)
 
-        await protocol.update_conditioner(climate=climate)
+        with pytest.raises(NoUsableService):
+            await protocol.update_conditioner(climate=climate)
