@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.0.4]
+### Changed
+- `test_http_protocol`, error checks changed
+### Fixed
+- `TestSendCommand` fix bug with command to code translation
+
 ## [0.0.3]
 ### Changed
 - `POWER_ON_CMD` and `POWER_OFF_CMD` constants
