@@ -9,7 +9,7 @@ setup(
     author="Anton Malko",
     author_email="antonmalko@mail.ru",
     description="Client for interaction of the LOOKin device with the Home Assistant",
-    packages=find_packages(),
+    packages=find_packages(exclude=['tests*']),
     install_requires=["aiohttp>=3.7.4"],
     classifiers=[
         "Programming Language :: Python :: 3.8",
