@@ -121,9 +121,10 @@ class LookinUDPProtocol:
         """Process incoming state changes."""
         LOGGER.debug("Received datagram: %s", data)
         content = data.decode()
-        if not content.startswith(
-            LOOKIN_UPDATED_MESSAGE_HDR_OLD
-        ) and not content.startswith(LOOKIN_UPDATED_MESSAGE_HDR):
+        if not (
+            content.startswith(LOOKIN_UPDATED_MESSAGE_HDR_OLD)
+            or content.startswith(LOOKIN_UPDATED_MESSAGE_HDR)
+        ):
             return
         _, msg = content.split("!")
         contents = msg.split(":")
