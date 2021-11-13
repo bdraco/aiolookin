@@ -27,6 +27,9 @@ from .models import Climate, Device, MeteoSensor, Remote
 
 LOOKIN_PORT: Final = 61201
 
+LOOKIN_UPDATED_MESSAGE_HDR_OLD = "LOOK.in:Updated!"  # Firmware 2.39 and eariler
+LOOKIN_UPDATED_MESSAGE_HDR = "LOOKin:Updated!"  # Firmware 2.40 and later
+
 CLIENT_TIMEOUTS: Final = ClientTimeout(total=9, connect=8, sock_connect=7, sock_read=7)
 
 LOGGER = logging.getLogger(__name__)
@@ -116,8 +119,12 @@ class LookinUDPProtocol:
 
     def datagram_received(self, data: bytes, addr: Any) -> None:
         """Process incoming state changes."""
+        LOGGER.debug("Received datagram: %s", data)
         content = data.decode()
-        if not content.startswith("LOOK.in:Updated!"):
+        if not (
+            content.startswith(LOOKIN_UPDATED_MESSAGE_HDR_OLD)
+            or content.startswith(LOOKIN_UPDATED_MESSAGE_HDR)
+        ):
             return
         _, msg = content.split("!")
         contents = msg.split(":")
