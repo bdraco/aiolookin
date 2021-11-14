@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `test_http_protocol`, error checks changed
 ### Fixed
 - `TestSendCommand` fix bug with command to code translation
+- Update `setup.py`, exclude tests
 
 ## [0.0.3]
 ### Changed
