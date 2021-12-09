@@ -5,8 +5,8 @@ import asyncio
 import contextlib
 import json
 import logging
-import socket
 import re
+import socket
 from enum import Enum
 from typing import Any, Callable, Final
 
@@ -24,7 +24,15 @@ from .const import (
     UPDATE_CLIMATE_URL,
 )
 from .error import NoUsableService
-from .models import Climate, Device, MeteoSensor, Remote, UDPEvent, UDPCommand, UDPCommandType
+from .models import (
+    Climate,
+    Device,
+    MeteoSensor,
+    Remote,
+    UDPCommand,
+    UDPCommandType,
+    UDPEvent,
+)
 
 LOOKIN_PORT: Final = 61201
 
@@ -53,16 +61,21 @@ class LookinUDPSubscriptions:
     def __init__(self) -> None:
         """Init and store callbacks."""
         self._loop = asyncio.get_event_loop()
-        self._event_callbacks: dict[tuple[str, UDPCommandType, str], list[Callable]] = {}
+        self._event_callbacks: dict[
+            tuple[str, UDPCommandType, str | None], list[Callable]
+        ] = {}
 
     def subscribe_event(
-        self, device_id: str, command_type: UDPCommandType,
-        uuid: str | None, callback: Callable
+        self,
+        device_id: str,
+        command_type: UDPCommandType,
+        uuid: str | None,
+        callback: Callable,
     ) -> Callable:
         """Subscribe to lookin sensor updates."""
-        self._event_callbacks.setdefault(
-            (device_id, command_type, uuid), []
-        ).append(callback)
+        self._event_callbacks.setdefault((device_id, command_type, uuid), []).append(
+            callback
+        )
 
         def _remove_call(*_: Any) -> None:
             self._event_callbacks[(device_id, command_type, uuid)].remove(callback)
@@ -85,8 +98,10 @@ class LookinUDPProtocol:
     """Implements Lookin UDP Protocol."""
 
     def __init__(
-        self, loop: asyncio.AbstractEventLoop,
-        subscriptions: LookinUDPSubscriptions, device_id: str
+        self,
+        loop: asyncio.AbstractEventLoop,
+        subscriptions: LookinUDPSubscriptions,
+        device_id: str,
     ) -> None:
         """Create Lookin UDP Protocol."""
         self.loop = loop
@@ -136,9 +151,13 @@ class LookinUDPProtocol:
 
         if command == UDPCommand.updated.value:
             return UDPEvent(
-                device_id=device_id, commnd=UDPCommand.updated,
-                type_code=type_code, data_package=data_package
+                device_id=device_id,
+                commnd=UDPCommand.updated,
+                type_code=type_code,
+                data_package=data_package,
             )
+
+        return None
 
 
 def _create_udp_socket() -> socket.socket:
