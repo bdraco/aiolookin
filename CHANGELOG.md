@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `UDPEvent` model for `LookinUDPProtocol`
 - Single processing for UDP event
 ### Added
-- `model` property for Device` model
+- `model` property for `Device` model
 
 ## [0.0.4]
 ### Changed
