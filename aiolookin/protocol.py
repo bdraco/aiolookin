@@ -6,6 +6,7 @@ import contextlib
 import json
 import logging
 import socket
+import re
 from enum import Enum
 from typing import Any, Callable, Final
 
@@ -23,12 +24,13 @@ from .const import (
     UPDATE_CLIMATE_URL,
 )
 from .error import NoUsableService
-from .models import Climate, Device, MeteoSensor, Remote
+from .models import Climate, Device, MeteoSensor, Remote, UDPEvent, UDPCommand, UDPCommandType
 
 LOOKIN_PORT: Final = 61201
 
-LOOKIN_UPDATED_MESSAGE_HDR_OLD = "LOOK.in:Updated!"  # Firmware 2.39 and eariler
-LOOKIN_UPDATED_MESSAGE_HDR = "LOOKin:Updated!"  # Firmware 2.40 and later
+UDP_PATTERN = re.compile(
+    r"LOOK([^:]+):(?P<command>[^!]+)!(?P<device_id>[^:]+):(?P<type_code>[^:]+):(?P<data>[^:].*)"
+)
 
 CLIENT_TIMEOUTS: Final = ClientTimeout(total=9, connect=8, sock_connect=7, sock_read=7)
 
@@ -38,11 +40,6 @@ LOGGER = logging.getLogger(__name__)
 class IRFormat(Enum):
     Raw = "raw"
     ProntoHEX = "prontohex"
-
-
-class SensorID(Enum):
-    IR = "87"
-    Meteo = "FE"
 
 
 def validate_response(response: ClientResponse) -> None:
@@ -55,62 +52,46 @@ class LookinUDPSubscriptions:
 
     def __init__(self) -> None:
         """Init and store callbacks."""
-        self._sensor_callbacks: dict[tuple[str, str, str | None], list[Callable]] = {}
-        self._service_callbacks: dict[tuple[str, str], list[Callable]] = {}
+        self._loop = asyncio.get_event_loop()
+        self._event_callbacks: dict[tuple[str, UDPCommandType, str], list[Callable]] = {}
 
-    def subscribe_sensor(
-        self, device_id: str, sensor_id: SensorID, uuid: str | None, callback: Callable
+    def subscribe_event(
+        self, device_id: str, command_type: UDPCommandType,
+        uuid: str | None, callback: Callable
     ) -> Callable:
         """Subscribe to lookin sensor updates."""
-        self._sensor_callbacks.setdefault(
-            (device_id, sensor_id.value, uuid), []
+        self._event_callbacks.setdefault(
+            (device_id, command_type, uuid), []
         ).append(callback)
 
         def _remove_call(*_: Any) -> None:
-            self._sensor_callbacks[(device_id, sensor_id.value, uuid)].remove(callback)
+            self._event_callbacks[(device_id, command_type, uuid)].remove(callback)
 
         return _remove_call
 
-    def notify_sensor(self, msg: dict[str, Any]) -> None:
+    def notify_event(self, event: UDPEvent) -> None:
         """Notify subscribers of a sensor update."""
-        device_id: str = msg["device_id"]
-        sensor_id: str = msg["sensor_id"]
-        uuid: str | None = msg.get("uuid")
-        LOGGER.debug("Received sensor push updates: %s", msg)
-        for callback in self._sensor_callbacks.get((device_id, sensor_id, uuid), []):
-            callback(msg)
-
-    def subscribe_service(
-        self, device_id: str, service_name: str, callback: Callable
-    ) -> Callable:
-        """Subscribe to lookin service updates."""
-        self._service_callbacks.setdefault((device_id, service_name), []).append(
-            callback
-        )
-
-        def _remove_call(*_: Any) -> None:
-            self._service_callbacks[(device_id, service_name)].remove(callback)
-
-        return _remove_call
-
-    def notify_service(self, msg: dict[str, Any]) -> None:
-        """Notify subscribers of a service update."""
-        LOGGER.debug("Received service push updates: %s", msg)
-        device_id: str = msg["device_id"]
-        service_name: str = msg["service_name"]
-        for callback in self._service_callbacks.get((device_id, service_name), []):
-            callback(msg)
+        LOGGER.debug("Received sensor push updates: %s", event)
+        for callback in self._event_callbacks.get(
+            (event.device_id, event.type, event.uuid), []
+        ):
+            if asyncio.iscoroutinefunction(callback):
+                asyncio.create_task(callback(event))
+            else:
+                callback(event)
 
 
 class LookinUDPProtocol:
     """Implements Lookin UDP Protocol."""
 
     def __init__(
-        self, loop: asyncio.AbstractEventLoop, subscriptions: LookinUDPSubscriptions
+        self, loop: asyncio.AbstractEventLoop,
+        subscriptions: LookinUDPSubscriptions, device_id: str
     ) -> None:
         """Create Lookin UDP Protocol."""
         self.loop = loop
         self.subscriptions = subscriptions
+        self._device_id = device_id
         self.transport: asyncio.DatagramTransport | None = None
 
     def connection_made(self, transport: asyncio.DatagramTransport) -> None:
@@ -120,30 +101,14 @@ class LookinUDPProtocol:
     def datagram_received(self, data: bytes, addr: Any) -> None:
         """Process incoming state changes."""
         LOGGER.debug("Received datagram: %s", data)
-        content = data.decode()
-        if not (
-            content.startswith(LOOKIN_UPDATED_MESSAGE_HDR_OLD)
-            or content.startswith(LOOKIN_UPDATED_MESSAGE_HDR)
-        ):
+
+        if not (lookin_event := self._parse_event(data=data)):
             return
-        _, msg = content.split("!")
-        contents = msg.split(":")
-        update: dict[str, str] = {"device_id": contents[0]}
-        if len(contents) == 3:
-            # LOOK.in:Updated!{device id}:{service name}:{value}
-            update["service_name"] = contents[1]
-            update["value"] = contents[2]
-            self.subscriptions.notify_service(update)
+
+        if lookin_event.type == UDPCommandType.unknown:
             return
-        # LOOK.in:Updated!{device id}:{sensor id}:{event id}:{value}
-        sensor_id = update["sensor_id"] = contents[1]
-        update["event_id"] = contents[2]
-        if sensor_id == SensorID.IR.value:
-            update["uuid"] = contents[3][:4]
-            update["value"] = contents[3][4:]
-        else:
-            update["value"] = contents[3]
-        self.subscriptions.notify_sensor(update)
+
+        self.subscriptions.notify_event(lookin_event)
 
     def error_received(self, exc: Exception) -> None:
         """Ignore errors."""
@@ -158,6 +123,23 @@ class LookinUDPProtocol:
         if self.transport:
             self.transport.close()
 
+    @staticmethod
+    def _parse_event(data: bytes) -> UDPEvent | None:
+        decoded_data = data.decode()
+
+        if not (match := UDP_PATTERN.match(decoded_data)):
+            return None
+        command = match.group("command").lower()
+        device_id = match.group("device_id")
+        type_code = match.group("type_code")
+        data_package = match.group("data")
+
+        if command == UDPCommand.updated.value:
+            return UDPEvent(
+                device_id=device_id, commnd=UDPCommand.updated,
+                type_code=type_code, data_package=data_package
+            )
+
 
 def _create_udp_socket() -> socket.socket:
     """Create a udp listener socket."""
@@ -171,11 +153,13 @@ def _create_udp_socket() -> socket.socket:
     return sock
 
 
-async def start_lookin_udp(subscriptions: LookinUDPSubscriptions) -> Callable:
+async def start_lookin_udp(
+    subscriptions: LookinUDPSubscriptions, device_id: str
+) -> Callable:
     """Create the socket and protocol."""
     loop = asyncio.get_event_loop()
     _, protocol = await loop.create_datagram_endpoint(
-        lambda: LookinUDPProtocol(loop, subscriptions),  # type: ignore
+        lambda: LookinUDPProtocol(loop, subscriptions, device_id),  # type: ignore
         sock=_create_udp_socket(),
     )
     return protocol.stop  # type: ignore

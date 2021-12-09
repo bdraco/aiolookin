@@ -7,7 +7,6 @@ from .protocol import (
     IRFormat,
     LookInHttpProtocol,
     LookinUDPSubscriptions,
-    SensorID,
     start_lookin_udp,
 )
 
@@ -19,7 +18,6 @@ __all__ = [
     "Climate",
     "Remote",
     "LookInHttpProtocol",
-    "SensorID",
     "IRFormat",
     "POWER_CMD",
     "POWER_OFF_CMD",

@@ -7,18 +7,16 @@ from typing import Any
 
 from .const import CODE_TO_NAME, STATUS_OFF, TEMP_OFFSET
 
-__all__ = ("Device", "MeteoSensor", "Climate", "Remote")
-
-
-class SensorID(Enum):
-    IR = "87"
-    Meteo = "FE"
+__all__ = (
+    "Device", "MeteoSensor", "Functions", "Climate",
+    "Remote", "UDPCommand", "UDPCommandType", "UDPEvent"
+)
 
 
 @dataclass
 class Device:
     type: str = field(init=False)
-    mrdc: str = field(init=False)
+    model: int = field(init=False)
     status: str = field(init=False)
     id: str = field(init=False)
     name: str | None = field(init=False)
@@ -35,7 +33,7 @@ class Device:
 
     def __post_init__(self, _data: dict[str, str]) -> None:
         self.type = _data["Type"]
-        self.mrdc = _data["MRDC"]
+        self.model = int(_data["MRDC"][:2], 16)
         self.status = _data["Status"]
         self.id = _data["ID"].upper()
         self.name = _data["Name"]
@@ -163,3 +161,75 @@ class Climate(Remote):
         self.temperature = int(status[1], 16)
         self.fan_mode = int(status[2])
         self.swing_mode = int(status[3])
+
+
+class UDPCommandType(Enum):
+    ir = "87"
+    meteo = "FE"
+    data = "data"
+    mqtt = "MQTT"
+    unknown = "unknown"
+
+
+class UDPCommand(Enum):
+    alive = "alive"
+    discover = "discover"
+    updated = "updated"
+    bleaction = "bleaction"
+
+
+@dataclass
+class UDPEvent:
+    type: UDPCommandType = field(init=False)
+    device_id: str
+    commnd: UDPCommand
+    type_code: InitVar[str]
+    data_package: InitVar[str]
+    uuid: str | None = None
+    value: str | None = None
+
+    def __post_init__(self, type_code: str, data_package: str) -> None:
+        """
+        Examples
+        meteo sensor update
+        LOOKin:Updated!98F33093:FE:00:00E201A8
+
+        ir sensor update
+        LOOKin:Updated!98F33093:87:FE:FC124000
+
+        device state update
+        LOOKin:Updated!98F33093:data:FC12
+
+        remote control buttun update
+        LOOKin:Updated!98F33093:data:F6C6:05
+        """
+        for command_type in UDPCommandType:
+            if type_code == command_type.value:
+                self.type = command_type
+                break
+        else:
+            self.type = UDPCommandType.unknown
+
+        if self.type == UDPCommandType.meteo:
+            state, value = data_package.split(":")
+            if state != "00":
+                self.type = UDPCommandType.unknown
+            else:
+                self.value = value
+
+        if self.type == UDPCommandType.ir:
+            if len(data_package) != 11:
+                self.type = UDPCommandType.unknown
+            else:
+                state, value = data_package.split(":")
+                if state != "FE":
+                    self.type = UDPCommandType.unknown
+                else:
+                    self.uuid = value[:4]
+                    self.value = value[-4:]
+
+        if self.type == UDPCommandType.data:
+            if len(data_package) == 4:
+                self.uuid = data_package
+            else:
+                self.uuid, _ = data_package.split(":")
