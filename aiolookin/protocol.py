@@ -115,7 +115,7 @@ class LookinUDPProtocol:
 
     def datagram_received(self, data: bytes, addr: Any) -> None:
         """Process incoming state changes."""
-        LOGGER.debug("Received datagram: %s", data)
+        LOGGER.debug("%s: Received datagram: %s", data, addr)
 
         if not (lookin_event := self._parse_event(data=data)):
             return
