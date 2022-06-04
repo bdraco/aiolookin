@@ -10,7 +10,12 @@ import socket
 from enum import Enum
 from typing import Any, Callable, Final
 
-from aiohttp import ClientResponse, ClientSession, ClientTimeout
+from aiohttp import (
+    ClientResponse,
+    ClientSession,
+    ClientTimeout,
+    ServerDisconnectedError,
+)
 
 from .const import (
     COMMAND_TO_CODE,
@@ -189,25 +194,47 @@ class LookInHttpProtocol:
         self._api_uri = api_uri
         self._session = session
 
+    async def _request(self, method: str, url: str, **kwargs: Any) -> ClientResponse:
+        """Handle a request that may need to retry on disconnect."""
+        for attempt in range(2):
+            try:
+                return await self._session.request(
+                    method=method, url=url, timeout=CLIENT_TIMEOUTS, **kwargs
+                )
+            except ServerDisconnectedError as ex:
+                LOGGER.debug(
+                    "Server disconnected on attempt %s while calling %s: %s",
+                    attempt,
+                    url,
+                    ex,
+                )
+                if attempt == 0:
+                    continue
+                raise
+
+    async def _get(self, url: str) -> ClientResponse:
+        """Handle a get that may need to retry on disconnect."""
+        return await self._request("GET", url)
+
+    async def _post(self, url: str, data: Any) -> ClientResponse:
+        """Handle a get that may need to retry on disconnect."""
+        return await self._request("POST", url, data=data)
+
     async def get_info(self) -> Device:
-        response = await self._session.get(
-            url=f"{self._api_uri}{INFO_URL}", timeout=CLIENT_TIMEOUTS
-        )
+        response = await self._get(url=f"{self._api_uri}{INFO_URL}")
         validate_response(response)
         payload = await response.json()
 
         return Device(_data=payload)
 
     async def update_device_name(self, name: str) -> None:
-        response = await self._session.post(
+        response = await self._post(
             url=f"{self._api_uri}{INFO_URL}", data=json.dumps({"name": name})
         )
         validate_response(response)
 
     async def get_meteo_sensor(self) -> MeteoSensor:
-        response = await self._session.get(
-            url=f"{self._api_uri}{METEO_SENSOR_URL}", timeout=CLIENT_TIMEOUTS
-        )
+        response = await self._get(url=f"{self._api_uri}{METEO_SENSOR_URL}")
 
         validate_response(response)
         payload = await response.json()
@@ -215,9 +242,7 @@ class LookInHttpProtocol:
         return MeteoSensor(_data=payload)
 
     async def get_devices(self) -> list[dict[str, Any]]:
-        response = await self._session.get(
-            url=f"{self._api_uri}{DEVICES_INFO_URL}", timeout=CLIENT_TIMEOUTS
-        )
+        response = await self._get(url=f"{self._api_uri}{DEVICES_INFO_URL}")
 
         validate_response(response)
         payload = await response.json()
@@ -226,9 +251,8 @@ class LookInHttpProtocol:
 
     async def get_device(self, uuid: str) -> dict[str, Any]:
         url = f"{self._api_uri}{DEVICE_INFO_URL}"
-        response = await self._session.get(
+        response = await self._get(
             url=url.format(uuid=uuid),
-            timeout=CLIENT_TIMEOUTS,
         )
 
         validate_response(response)
@@ -250,9 +274,8 @@ class LookInHttpProtocol:
 
         url = f"{self._api_uri}{SEND_IR_COMMAND}"
 
-        response = await self._session.get(
+        response = await self._get(
             url=url.format(uuid=uuid, command=code, signal=signal),
-            timeout=CLIENT_TIMEOUTS,
         )
 
         validate_response(response)
@@ -264,18 +287,15 @@ class LookInHttpProtocol:
             url = f"{self._api_uri}{SEND_IR_COMMAND_RAW}"
         else:
             raise ValueError(f"{ir_format} is not a known IRFormat")
-        response = await self._session.get(
-            url=url.format(codes=codes), timeout=CLIENT_TIMEOUTS
-        )
+        response = await self._get(url=url.format(codes=codes))
 
         validate_response(response)
 
     async def update_conditioner(self, climate: Climate) -> None:
         """Update the conditioner from a Climate object."""
         url = f"{self._api_uri}{UPDATE_CLIMATE_URL}"
-        response = await self._session.get(
+        response = await self._get(
             url=url.format(extra=climate.extra, status=climate.to_status),
-            timeout=CLIENT_TIMEOUTS,
         )
 
         validate_response(response)

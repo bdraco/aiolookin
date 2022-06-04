@@ -8,8 +8,14 @@ from typing import Any
 from .const import CODE_TO_NAME, STATUS_OFF, TEMP_OFFSET
 
 __all__ = (
-    "Device", "MeteoSensor", "Functions", "Climate",
-    "Remote", "UDPCommand", "UDPCommandType", "UDPEvent"
+    "Device",
+    "MeteoSensor",
+    "Functions",
+    "Climate",
+    "Remote",
+    "UDPCommand",
+    "UDPCommandType",
+    "UDPEvent",
 )
 
 
